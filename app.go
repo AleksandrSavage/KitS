@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"kitS/things/play"
+
 )
 
 // App struct
@@ -19,6 +20,15 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context)  {
 	a.ctx = ctx
+}
+
+
+func (a *App) PlayAudio(path string) error {
+	return play.PlayAudio(path)
+}
+
+func (a *App) StopSound() {
+    play.StopAudio()
 }
 
 
