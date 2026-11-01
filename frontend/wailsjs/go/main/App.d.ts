@@ -3,4 +3,4 @@
 
 export function PlayAudio(arg1:string):Promise<void>;
 
-export function StopSound():Promise<void>;
+export function StopAudio():Promise<void>;

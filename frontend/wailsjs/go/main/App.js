@@ -6,6 +6,6 @@ export function PlayAudio(arg1) {
   return window['go']['main']['App']['PlayAudio'](arg1);
 }
 
-export function StopSound() {
-  return window['go']['main']['App']['StopSound']();
+export function StopAudio() {
+  return window['go']['main']['App']['StopAudio']();
 }

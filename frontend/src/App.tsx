@@ -1,14 +1,19 @@
-import { PlayAudio } from "../wailsjs/go/main/App.js";
+import { PlayAudio, StopAudio } from "../wailsjs/go/main/App.js";
 
 const App = ()=> {
 
-const handleClick = async () => {
+const play = async () => {
         PlayAudio("test/audio-test.mp3");
     };
 
+const stop = async () => {
+       StopAudio();
+    };    
+
 return (
     <div>
-        <button onClick={handleClick}>bitton</button>
+        <button onClick={play}>bitton</button>
+        <button onClick={stop}>stop bitton</button>
     </div>
 )
 }

@@ -27,7 +27,7 @@ func (a *App) PlayAudio(path string) error {
 	return play.PlayAudio(path)
 }
 
-func (a *App) StopSound() {
+func (a *App) StopAudio() {
     play.StopAudio()
 }
 
