@@ -29,87 +29,108 @@ var (
 	current *beep.Ctrl
 )
 
-func PlayAudio(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("не удалось открыть файл: %w", err)
-	}
+func decode(path string, f *os.File) (beep.StreamSeekCloser, beep.Format, error) {
+    ext := strings.ToLower(filepath.Ext(path))
 
-	var (
-		streamer beep.StreamSeekCloser
-		format   beep.Format
-	)
+    switch ext {
+    case ".mp3":
+        return mp3.Decode(f)
 
-	ext := strings.ToLower(filepath.Ext(path))
+    case ".wav":
+        return wav.Decode(f)
 
-	switch ext {
-	case ".mp3":
-		streamer, format, err = mp3.Decode(f)
-	case ".wav":
-		streamer, format, err = wav.Decode(f)
-	case ".ogg", ".oga":
-		streamer, format, err = vorbis.Decode(f)
-	case ".flac":
-		streamer, format, err = flac.Decode(f)
-	default:
-		f.Close()
-		return fmt.Errorf("формат %s не поддерживается", ext)
-	}
+    case ".ogg", ".oga":
+        return vorbis.Decode(f)
 
-	if err != nil {
-		f.Close()
-		return fmt.Errorf("ошибка декодирования: %w", err)
-	}
+    case ".flac":
+        return flac.Decode(f)
 
-	speakerOnce.Do(func() {
-		speakerInitErr = speaker.Init(targetSampleRate, targetSampleRate.N(time.Second/10))
-	})
+    default:
+        return nil, beep.Format{}, fmt.Errorf(
+            "формат %s не поддерживается библиотекой beep", ext,
+        )
+    }
+}
+func openFile(path string) (beep.StreamSeekCloser, beep.Format, *os.File, error,) {
+    f, err := os.Open(path)
+    if err != nil {
+        return nil, beep.Format{}, nil, err
+    }
 
-	if speakerInitErr != nil {
-		streamer.Close()
-		f.Close()
-		return fmt.Errorf("ошибка инициализации speaker: %w", speakerInitErr)
-	}
+    streamer, format, err := decode(path, f)
+    if err != nil {
+        f.Close()
+        return nil, beep.Format{}, nil, err
+    }
 
-	
-	resampled := beep.Resample(
-		4,
-		format.SampleRate,
-		targetSampleRate,
-		streamer,
-	)
+    return streamer, format, f, nil
+}
+func initSpeaker() error {
+    speakerOnce.Do(func() {
+        speakerInitErr = speaker.Init(
+            targetSampleRate,
+            targetSampleRate.N(time.Second/10),
+        )
+    })
 
-	
-	wrapped := beep.Seq(
-		resampled,
-		beep.Callback(func() {
-			streamer.Close()
-			f.Close()
-		}),
-	)
+    return speakerInitErr
+}
+func resampleAudio(streamer beep.Streamer, format beep.Format,) beep.Streamer {
+    return beep.Resample(
+        4,
+        format.SampleRate,
+        targetSampleRate,
+        streamer,
+    )
+}
+func wrapAudio(streamer beep.Streamer, decoder beep.StreamSeekCloser, file *os.File,) beep.Streamer {
+    return beep.Seq(
+        streamer,
+        beep.Callback(func() {
+            decoder.Close()
+            file.Close()
+        }),
+    )
+}
+func startPlayback(streamer beep.Streamer) {
+    playMu.Lock()
+    defer playMu.Unlock()
 
-	playMu.Lock()
-	defer playMu.Unlock()
+    speaker.Lock()
 
-	speaker.Lock()
+    if current != nil {
+        current.Streamer = nil
+    }
 
+    current = &beep.Ctrl{
+        Streamer: streamer,
+    }
 
-	if current != nil {
-		current.Streamer = nil
-	}
+    speaker.Unlock()
 
-
-	current = &beep.Ctrl{
-		Streamer: wrapped,
-	}
-
-	speaker.Unlock()
-
-	speaker.Play(current)
-
-	return nil
+    speaker.Play(current)
 }
 
+func PlayAudio(path string) error {
+    streamer, format, file, err := openFile(path)
+    if err != nil {
+        return fmt.Errorf("ошибка открытия аудио: %w", err)
+    }
+
+    if err := initSpeaker(); err != nil {
+        streamer.Close()
+        file.Close()
+        return fmt.Errorf("ошибка speaker: %w", err)
+    }
+
+    resampled := resampleAudio(streamer, format)
+
+    wrapped := wrapAudio(resampled, streamer, file)
+
+	startPlayback(wrapped)
+
+    return nil
+}
 
 func StopAudio() {
 	playMu.Lock()
@@ -123,4 +144,28 @@ func StopAudio() {
 	}
 
 	speaker.Unlock()
+}
+
+func PauseAudio() {
+    playMu.Lock()
+    defer playMu.Unlock()
+
+    speaker.Lock()
+    defer speaker.Unlock()
+
+    if current != nil {
+        current.Paused = true
+    }
+}
+
+func ResumeAudio() {
+    playMu.Lock()
+    defer playMu.Unlock()
+
+    speaker.Lock()
+    defer speaker.Unlock()
+
+    if current != nil {
+        current.Paused = false
+    }
 }

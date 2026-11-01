@@ -31,5 +31,12 @@ func (a *App) StopAudio() {
     play.StopAudio()
 }
 
+func (a *App) PauseAudio() {
+	play.PauseAudio()
+}
+
+func (a *App) ResumeAudio() {
+	play.ResumeAudio()
+}
 
 
