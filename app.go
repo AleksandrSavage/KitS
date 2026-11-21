@@ -1,25 +1,59 @@
+
 package main
 
 import (
-	"context"
+    "context"
+
+    "kitS/internal/play"
+
+    "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// App struct
 type App struct {
-	ctx context.Context
+    ctx    context.Context
+    player *play.Player
 }
 
-// NewApp creates a new App application struct
 func NewApp() *App {
-	return &App{}
+    return &App{
+        player: play.NewPlayer(),
+    }
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
-func (a *App) startup(ctx context.Context)  {
-	a.ctx = ctx
+func (a *App) startup(ctx context.Context) {
+    a.ctx = ctx
+
+    a.player.SetEventHandler(func(event play.Event) {
+        runtime.EventsEmit(
+            a.ctx,
+            string(event.Type),
+            event,
+        )
+    })
 }
 
+func (a *App) shutdown(ctx context.Context) {
+    if err := a.player.Close(); err != nil {
+        runtime.LogError(ctx, err.Error())
+    }
+}
 
+func (a *App) Play(path string) error {
+    return a.player.Play(path)
+}
 
+func (a *App) Pause() error {
+    return a.player.Pause()
+}
 
+func (a *App) Resume() error {
+    return a.player.Resume()
+}
+
+func (a *App) Stop() error {
+    return a.player.Stop()
+}
+
+func (a *App) GetState() string {
+    return a.player.State().String()
+}

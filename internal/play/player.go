@@ -7,6 +7,7 @@ type Player struct {
 	state  State
 	engine *engine
 	eventHandler EventHandler
+	opMu sync.Mutex 
 }
 
 
@@ -42,4 +43,97 @@ func (p *Player) setState(state State) {
         Type:  EventStateChanged,
         State: state.String(),
     })
+}
+
+
+func (p *Player) Play(path string) error {
+    p.opMu.Lock()
+    defer p.opMu.Unlock()
+
+    if err := p.engine.stop(); err != nil {
+        p.emitError(err)
+        p.setState(StateError)
+        return err
+    }
+
+    p.setState(StateLoading)
+
+    audio, err := openAudio(path)
+    if err != nil {
+        p.emitError(err)
+        p.setState(StateError)
+        return err
+    }
+
+    playback, err := resampleAudio(
+        audio.streamer,
+        audio.format.SampleRate,
+        targetSampleRate,
+    )
+    if err != nil {
+        _ = audio.streamer.Close()
+        p.emitError(err)
+        p.setState(StateError)
+        return err
+    }
+
+    if err := p.engine.start(audio, playback); err != nil {
+        _ = audio.streamer.Close()
+        p.emitError(err)
+        p.setState(StateError)
+        return err
+    }
+
+    p.setState(StatePlaying)
+
+    return nil
+}
+
+
+func (p *Player) Pause() error {
+    p.opMu.Lock()
+    defer p.opMu.Unlock()
+
+    if err := p.engine.pause(); err != nil {
+        return err
+    }
+
+    p.setState(StatePaused)
+
+    return nil
+}
+
+
+func (p *Player) Resume() error {
+    p.opMu.Lock()
+    defer p.opMu.Unlock()
+
+    if err := p.engine.resume(); err != nil {
+        return err
+    }
+
+    p.setState(StatePlaying)
+
+    return nil
+}
+
+
+func (p *Player) Stop() error {
+    p.opMu.Lock()
+    defer p.opMu.Unlock()
+
+    if err := p.engine.stop(); err != nil {
+        p.emitError(err)
+        p.setState(StateError)
+        return err
+    }
+
+    p.setState(StateStopped)
+
+    return nil
+}
+
+
+func (p *Player) Close() error {
+    return p.Stop()
 }
