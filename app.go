@@ -57,3 +57,23 @@ func (a *App) Stop() error {
 func (a *App) GetState() string {
     return a.player.State().String()
 }
+
+
+func (a *App) SelectAudioFile() (string, error) {
+    return runtime.OpenFileDialog(
+        a.ctx,
+        runtime.OpenDialogOptions{
+            Title: "Выбери аудиофайл",
+            Filters: []runtime.FileFilter{
+                {
+                    DisplayName: "Audio files",
+                    Pattern: "*.mp3;*.wav;*.ogg;*.oga;*.flac",
+                },
+                {
+                    DisplayName: "All files",
+                    Pattern: "*.*",
+                },
+            },
+        },
+    )
+}
