@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"kitS/things/play"
-
 )
 
 // App struct
@@ -23,20 +21,5 @@ func (a *App) startup(ctx context.Context)  {
 }
 
 
-func (a *App) PlayAudio(path string) error {
-	return play.PlayAudio(path)
-}
-
-func (a *App) StopAudio() {
-    play.StopAudio()
-}
-
-func (a *App) PauseAudio() {
-	play.PauseAudio()
-}
-
-func (a *App) ResumeAudio() {
-	play.ResumeAudio()
-}
 
 
