@@ -76,15 +76,23 @@ func (e *engine) start(
 		_ = e.current.streamer.Close()
 	}
 
+	tracked := &progressStreamer{
+    source: playback,
+	}
+
 	ctrl := &beep.Ctrl{
-		Streamer: playback,
+    	Streamer: tracked,
 	}
 
 	e.current = audio
 	e.ctrl = ctrl
 
+	e.progress = tracked
+	e.duration = audio.format.SampleRate.D(
+    	audio.streamer.Len(),
+	)
+	e.ended = false
 	speaker.Play(ctrl)
-
 	return nil
 }
 
@@ -133,6 +141,10 @@ func (e *engine) stop() error {
 	e.ctrl = nil
 	e.current = nil
 
+	e.progress = nil
+	e.duration = 0
+	e.ended = false
+
 	if audio != nil {
 		return audio.streamer.Close()
 	}
@@ -152,4 +164,28 @@ func (s *progressStreamer) Stream(
 
 func (s *progressStreamer) Err() error {
     return s.source.Err()
+}
+
+func (e *engine) getProgress() (time.Duration, time.Duration) {
+    e.mu.Lock()
+    defer e.mu.Unlock()
+
+    if e.progress == nil {
+        return 0, 0
+    }
+
+    duration := e.duration
+
+    samples := atomic.LoadInt64(&e.progress.samples)
+    position := targetSampleRate.D(int(samples))
+
+    if e.ended {
+        position = duration
+    }
+
+    if position > duration {
+        position = duration
+    }
+
+    return position, duration
 }
