@@ -23,6 +23,7 @@ type PlayerEvent = {
 };
 
 const App = ()=> {
+    const [activePath, setActivePath] = useState("");
     const [filePath, setFilePath] = useState("");
     const [state, setState] = useState("idle");
     const [error, setError] = useState("");
@@ -89,14 +90,32 @@ const App = ()=> {
         }
     }
 
-    // Запуск выбранного файла.
-    function play() {
+    async function togglePlayback() {
         if (!filePath) {
-            setError("Сначала выбери аудиофайл");
-            return;
-        }
+        setError("Сначала выбери аудиофайл");
+        return;
+    }
 
-        return runCommand(() => Play(filePath));
+        return runCommand(async () => {
+            if (filePath !== activePath) {
+                await Play(filePath);
+                setActivePath(filePath);
+                return;
+            }
+
+            if (state === "playing") {
+                await Pause();
+                return;
+            }
+
+            if (state === "paused") {
+                await Resume();
+                return;
+            }
+
+            await Play(filePath);
+            setActivePath(filePath);
+        });
     }
 
     const fileName =
@@ -122,34 +141,13 @@ const App = ()=> {
 
             <section className="controls">
                 <button
-                    onClick={play}
+                    className="play-button"
+                    onClick={togglePlayback}
                     disabled={busy || !filePath}
                 >
-                    Play
-                </button>
-
-                <button
-                    onClick={() => runCommand(() => Pause())}
-                    disabled={busy || state !== "playing"}
-                >
-                    Pause
-                </button>
-
-                <button
-                    onClick={() => runCommand(() => Resume())}
-                    disabled={busy || state !== "paused"}
-                >
-                    Resume
-                </button>
-
-                <button
-                    onClick={() => runCommand(() => Stop())}
-                    disabled={
-                        busy ||
-                        (state !== "playing" && state !== "paused")
-                    }
-                >
-                    Stop
+                {state === "playing" && activePath === filePath
+                    ? "Pause"
+                    : "Play"}
                 </button>
             </section>
 
