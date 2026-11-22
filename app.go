@@ -3,6 +3,7 @@ package main
 
 import (
     "context"
+    "time"
 
     "kitS/internal/play"
 
@@ -80,4 +81,10 @@ func (a *App) SelectAudioFile() (string, error) {
 
 func (a *App) GetProgress() play.PlaybackProgress {
     return a.player.Progress()
+}
+
+func (a *App) Seek(positionMs int64) error {
+    position := time.Duration(positionMs) * time.Millisecond
+
+    return a.player.Seek(position)
 }

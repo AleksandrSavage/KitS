@@ -189,3 +189,64 @@ func (e *engine) getProgress() (time.Duration, time.Duration) {
 
     return position, duration
 }
+
+
+func (e *engine) seek(position time.Duration) error {
+    e.mu.Lock()
+    defer e.mu.Unlock()
+
+    if e.current == nil || e.ctrl == nil {
+        return fmt.Errorf("nothing is playing")
+    }
+
+    if position < 0 {
+        position = 0
+    }
+
+    if position > e.duration {
+        position = e.duration
+    }
+
+    wasPaused := e.ctrl.Paused
+    speaker.Lock()
+    e.ctrl.Paused = true
+    speaker.Unlock()
+
+    sourcePosition := e.current.format.SampleRate.N(position)
+
+    if err := e.current.streamer.Seek(sourcePosition); err != nil {
+        speaker.Lock()
+        e.ctrl.Paused = wasPaused
+        speaker.Unlock()
+
+        return fmt.Errorf("seek decoder: %w", err)
+    }
+
+    playback, err := resampleAudio(
+        e.current.streamer,
+        e.current.format.SampleRate,
+        targetSampleRate,
+    )
+
+    if err != nil {
+        return fmt.Errorf("resample after seek: %w", err)
+    }
+
+    tracked := &progressStreamer{
+        source: playback,
+    }
+
+    atomic.StoreInt64(
+        &tracked.samples,
+        int64(targetSampleRate.N(position)),
+    )
+
+    speaker.Lock()
+    e.ctrl.Streamer = tracked
+    e.ctrl.Paused = wasPaused
+    speaker.Unlock()
+
+    e.progress = tracked
+
+    return nil
+}

@@ -10,6 +10,7 @@ import {
     Stop,
     GetState,
     GetProgress,
+    Seek,
 } from "../wailsjs/go/main/App.js";
 
 import {
@@ -35,17 +36,17 @@ function App() {
         durationMs: 0,
     });
 
-    // Форматирование времени: 65000 -> 1:05
+    const [isSeeking, setIsSeeking] = useState(false);
+    const [seekValue, setSeekValue] = useState(0);
+
     function formatTime(ms: number): string {
         const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
 
         return `${minutes}:${String(seconds).padStart(2, "0")}`;
     }
 
-    // Получение прогресса воспроизведения.
     useEffect(() => {
         let cancelled = false;
 
@@ -71,7 +72,6 @@ function App() {
         };
     }, []);
 
-    // Подписка на события от Go.
     useEffect(() => {
         EventsOn("state_changed", (event: PlayerEvent) => {
             setState(event.state ?? "unknown");
@@ -85,7 +85,6 @@ function App() {
             setState("ended");
         });
 
-        // Получаем начальное состояние.
         GetState()
             .then(setState)
             .catch((err) => setError(String(err)));
@@ -99,7 +98,6 @@ function App() {
         };
     }, []);
 
-    // Универсальная обработка команд плеера.
     async function runCommand(
         command: () => Promise<void>
     ): Promise<void> {
@@ -115,7 +113,6 @@ function App() {
         }
     }
 
-    // Открытие системного окна выбора файла.
     async function chooseFile() {
         setError("");
 
@@ -124,28 +121,27 @@ function App() {
 
             if (!path) return;
 
-            // Если выбран тот же трек, ничего не делаем.
-            if (path === activePath) return;
-
-            // Останавливаем предыдущий трек.
-            if (state === "playing" || state === "paused") {
-                await runCommand(() => Stop());
+            if (
+                path !== activePath &&
+                (state === "playing" || state === "paused")
+            ) {
+                await Stop();
             }
 
             setFilePath(path);
-            setActivePath("");
 
-            setProgress({
-                positionMs: 0,
-                durationMs: 0,
-            });
-
+            if (path !== activePath) {
+                setActivePath("");
+                setProgress({
+                    positionMs: 0,
+                    durationMs: 0,
+                });
+            }
         } catch (err) {
             setError(String(err));
         }
     }
 
-    // Единая кнопка Play / Pause.
     async function togglePlayback() {
         if (!filePath) {
             setError("Сначала выбери аудиофайл");
@@ -153,29 +149,43 @@ function App() {
         }
 
         await runCommand(async () => {
-            // Выбран другой файл.
             if (filePath !== activePath) {
                 await Play(filePath);
                 setActivePath(filePath);
                 return;
             }
 
-            // Музыка играет — ставим на паузу.
             if (state === "playing") {
                 await Pause();
                 return;
             }
 
-            // Музыка на паузе — продолжаем.
             if (state === "paused") {
                 await Resume();
                 return;
             }
 
-            // Трек закончился или остановлен — запускаем заново.
             await Play(filePath);
             setActivePath(filePath);
         });
+    }
+
+    async function commitSeek(positionMs: number) {
+        const target = Math.max(
+            0,
+            Math.min(positionMs, visibleProgress.durationMs)
+        );
+
+        await runCommand(async () => {
+            await Seek(target);
+
+            setProgress((prev) => ({
+                ...prev,
+                positionMs: target,
+            }));
+        });
+
+        setIsSeeking(false);
     }
 
     const fileName =
@@ -186,11 +196,18 @@ function App() {
             ? progress
             : { positionMs: 0, durationMs: 0 };
 
+    const displayedPositionMs = isSeeking
+        ? seekValue
+        : visibleProgress.positionMs;
+
     const progressPercent =
         visibleProgress.durationMs > 0
             ? Math.min(
                 100,
-                (visibleProgress.positionMs / visibleProgress.durationMs) * 100
+                Math.max(
+                    0,
+                    (displayedPositionMs / visibleProgress.durationMs) * 100
+                )
             )
             : 0;
 
@@ -198,7 +215,6 @@ function App() {
         <main className="player">
             <h1>Audio Player</h1>
 
-            {/* Информация о треке */}
             <section className="track">
                 <p className="label">Текущий файл</p>
 
@@ -214,7 +230,6 @@ function App() {
                 </button>
             </section>
 
-            {/* Управление воспроизведением */}
             <section className="controls">
                 <button
                     className="play-button"
@@ -227,33 +242,69 @@ function App() {
                 </button>
             </section>
 
-            {/* Время и прогресс-бар */}
             <section className="timeline">
                 <span className="time-current">
-                    {formatTime(visibleProgress.positionMs)}
+                    {formatTime(displayedPositionMs)}
                 </span>
 
-                <div
-                    className="progress-track"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={progressPercent}
-                >
-                    <div
-                        className="progress-fill"
-                        style={{
-                            width: `${progressPercent}%`,
-                        }}
-                    />
-                </div>
+                <input
+                    className="progress-slider"
+                    type="range"
+                    min={0}
+                    max={visibleProgress.durationMs}
+                    step={100}
+                    value={Math.min(
+                        displayedPositionMs,
+                        visibleProgress.durationMs
+                    )}
+                    disabled={
+                        busy ||
+                        visibleProgress.durationMs <= 0 ||
+                        (state !== "playing" && state !== "paused")
+                    }
+                    style={{
+                        background: `linear-gradient(
+                            to right,
+                            #66cf9c ${progressPercent}%,
+                            #414653 ${progressPercent}%
+                        )`,
+                    }}
+                    onPointerDown={() => {
+                        setIsSeeking(true);
+                        setSeekValue(visibleProgress.positionMs);
+                    }}
+                    onChange={(event) => {
+                        setIsSeeking(true);
+                        setSeekValue(Number(event.target.value));
+                    }}
+                    onPointerUp={(event) => {
+                        void commitSeek(
+                            Number(event.currentTarget.value)
+                        );
+                    }}
+                    onKeyUp={(event) => {
+                        if (
+                            [
+                                "ArrowLeft",
+                                "ArrowRight",
+                                "Home",
+                                "End",
+                                "PageUp",
+                                "PageDown",
+                            ].includes(event.key)
+                        ) {
+                            void commitSeek(
+                                Number(event.currentTarget.value)
+                            );
+                        }
+                    }}
+                />
 
                 <span className="time-duration">
                     {formatTime(visibleProgress.durationMs)}
                 </span>
             </section>
 
-            {/* Состояние плеера */}
             <section className="status">
                 <p className="label">Состояние плеера</p>
 
@@ -268,11 +319,9 @@ function App() {
                 </p>
             )}
 
-            {}
             {error && (
                 <section className="error">
                     <p>Ошибка</p>
-
                     <span>{error}</span>
 
                     <button onClick={() => setError("")}>

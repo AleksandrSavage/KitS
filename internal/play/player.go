@@ -1,6 +1,8 @@
 package play
 
-import "sync"
+import ("sync"
+        "time"
+)
 
 type Player struct {
 	mu     sync.RWMutex
@@ -150,4 +152,15 @@ func (p *Player) Progress() PlaybackProgress {
         PositionMs: position.Milliseconds(),
         DurationMs: duration.Milliseconds(),
     }
+}
+
+func (p *Player) Seek(position time.Duration) error {
+    p.opMu.Lock()
+    defer p.opMu.Unlock()
+
+    if err := p.engine.seek(position); err != nil {
+        return err
+    }
+
+    return nil
 }
