@@ -10,6 +10,11 @@ type Player struct {
 	opMu sync.Mutex 
 }
 
+type PlaybackProgress struct {
+    PositionMs int64 `json:"positionMs"`
+    DurationMs int64 `json:"durationMs"`
+}
+
 
 func NewPlayer() *Player {
 	return &Player{
@@ -136,4 +141,13 @@ func (p *Player) Stop() error {
 
 func (p *Player) Close() error {
     return p.Stop()
+}
+
+func (p *Player) Progress() PlaybackProgress {
+    position, duration := p.engine.getProgress()
+
+    return PlaybackProgress{
+        PositionMs: position.Milliseconds(),
+        DurationMs: duration.Milliseconds(),
+    }
 }

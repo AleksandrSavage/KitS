@@ -77,3 +77,7 @@ func (a *App) SelectAudioFile() (string, error) {
         },
     )
 }
+
+func (a *App) GetProgress() play.PlaybackProgress {
+    return a.player.Progress()
+}
