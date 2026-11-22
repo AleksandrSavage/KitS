@@ -154,7 +154,7 @@ func (p *Player) Progress() PlaybackProgress {
     }
 }
 
-func (p *Player) Seek(position time.Duration) error {
+func (p *Player) SeekTo(position time.Duration) error {
     p.opMu.Lock()
     defer p.opMu.Unlock()
 

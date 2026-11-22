@@ -10,7 +10,7 @@ import {
     Stop,
     GetState,
     GetProgress,
-    Seek,
+    SeekTo,
 } from "../wailsjs/go/main/App.js";
 
 import {
@@ -177,7 +177,7 @@ function App() {
         );
 
         await runCommand(async () => {
-            await Seek(target);
+            await SeekTo(target);
 
             setProgress((prev) => ({
                 ...prev,

@@ -12,7 +12,7 @@ export function Play(arg1:string):Promise<void>;
 
 export function Resume():Promise<void>;
 
-export function Seek(arg1:number):Promise<void>;
+export function SeekTo(arg1:number):Promise<void>;
 
 export function SelectAudioFile():Promise<string>;
 

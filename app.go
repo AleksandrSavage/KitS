@@ -83,8 +83,8 @@ func (a *App) GetProgress() play.PlaybackProgress {
     return a.player.Progress()
 }
 
-func (a *App) Seek(positionMs int64) error {
+func (a *App) SeekTo(positionMs int64) error {
     position := time.Duration(positionMs) * time.Millisecond
 
-    return a.player.Seek(position)
+    return a.player.SeekTo(position)
 }

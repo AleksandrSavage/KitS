@@ -22,8 +22,8 @@ export function Resume() {
   return window['go']['main']['App']['Resume']();
 }
 
-export function Seek(arg1) {
-  return window['go']['main']['App']['Seek'](arg1);
+export function SeekTo(arg1) {
+  return window['go']['main']['App']['SeekTo'](arg1);
 }
 
 export function SelectAudioFile() {
