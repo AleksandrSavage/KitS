@@ -7,6 +7,7 @@ import {
     Play,
     Pause,
     Resume,
+    Stop,
     GetState,
     GetProgress,
 } from "../wailsjs/go/main/App.js";
@@ -123,7 +124,22 @@ function App() {
 
             if (!path) return;
 
+            // Если выбран тот же трек, ничего не делаем.
+            if (path === activePath) return;
+
+            // Останавливаем предыдущий трек.
+            if (state === "playing" || state === "paused") {
+                await runCommand(() => Stop());
+            }
+
             setFilePath(path);
+            setActivePath("");
+
+            setProgress({
+                positionMs: 0,
+                durationMs: 0,
+            });
+
         } catch (err) {
             setError(String(err));
         }
@@ -164,7 +180,7 @@ function App() {
 
     const fileName =
         filePath.split(/[\\/]/).pop() || "Файл не выбран";
-        
+
     const visibleProgress =
         activePath === filePath
             ? progress
