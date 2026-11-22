@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"sync/atomic"
 
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/speaker"
@@ -13,6 +14,14 @@ type engine struct {
 	mu      sync.Mutex
 	current *decodedAudio
 	ctrl    *beep.Ctrl
+	progress *progressStreamer
+    duration time.Duration
+    ended    bool
+}
+
+type progressStreamer struct {
+    source  beep.Streamer
+    samples int64
 }
 
 const (
@@ -129,4 +138,18 @@ func (e *engine) stop() error {
 	}
 
 	return nil
+}
+
+func (s *progressStreamer) Stream(
+    buffer [][2]float64,
+) (int, bool) {
+    n, ok := s.source.Stream(buffer)
+
+    atomic.AddInt64(&s.samples, int64(n))
+
+    return n, ok
+}
+
+func (s *progressStreamer) Err() error {
+    return s.source.Err()
 }
